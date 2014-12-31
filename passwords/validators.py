@@ -18,6 +18,8 @@ COMMON_SEQUENCES = [
     "qazwsxedcrfvtgbyhnujmikolp"
 ]
 
+PASSWORD_SPECIAL_CHARACTERS = ["!","#","$","%","&","(",")",".",'"',"'","<",">","=","?","@","+","*"]
+
 # Settings
 PASSWORD_MIN_LENGTH = getattr(settings, "PASSWORD_MIN_LENGTH", 6)
 PASSWORD_MAX_LENGTH = getattr(settings, "PASSWORD_MAX_LENGTH", None)
@@ -25,6 +27,7 @@ PASSWORD_DICTIONARY = getattr(settings, "PASSWORD_DICTIONARY", None)
 PASSWORD_MATCH_THRESHOLD = getattr(settings, "PASSWORD_MATCH_THRESHOLD", 0.9)
 PASSWORD_COMMON_SEQUENCES =  getattr(settings, "PASSWORD_COMMON_SEQUENCES", COMMON_SEQUENCES)
 PASSWORD_COMPLEXITY = getattr(settings, "PASSWORD_COMPLEXITY", None)
+PASSWORD_SPECIAL_CHARACTERS = getattr(settings, "PASSWORD_SPECIAL_CHARACTERS", PASSWORD_SPECIAL_CHARACTERS)
 
 class LengthValidator(object):
     message = _("Invalid Length (%s)")
@@ -48,14 +51,15 @@ class ComplexityValidator(object):
     message = _("Must be more complex (%s)")
     code = "complexity"
 
-    def __init__(self, complexities):
+    def __init__(self, complexities, special_characters):
         self.complexities = complexities
+        self.special_characters = special_characters
 
     def __call__(self, value):
         if self.complexities is None:
             return
 
-        uppercase, lowercase, digits, non_ascii, punctuation = set(), set(), set(), set(), set()
+        uppercase, lowercase, digits, non_ascii, punctuation, special_characters = set(), set(), set(), set(), set(), set()
 
         for character in value:
             if ord(character) >= 128:
@@ -66,6 +70,8 @@ class ComplexityValidator(object):
                 lowercase.add(character)
             elif character.isdigit():
                 digits.add(character)
+            elif character in self.special_characters:
+                special_characters.add(character)
             elif character in string.punctuation:
                 punctuation.add(character)
             else:
@@ -85,6 +91,9 @@ class ComplexityValidator(object):
             raise ValidationError(
                 self.message % _("Must contain %(DIGITS)s or more digits") % self.complexities,
                 code=self.code)
+        elif len(special_characters) < self.complexities.get("SPECIAL_CHARACTERS", 0):
+            raise ValidationError(
+                self.message % _("Must contain %s or more special characters, example: %s") % (self.complexities['SPECIAL_CHARACTERS'], self.special_characters), code=self.code)
         elif len(punctuation) < self.complexities.get("PUNCTUATION", 0):
             raise ValidationError(
                 self.message % _("Must contain %(PUNCTUATION)s or more punctuation character") % self.complexities,
@@ -156,6 +165,6 @@ class CommonSequenceValidator(BaseSimilarityValidator):
     code = "common_sequence"
         
 validate_length = LengthValidator(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
-complexity = ComplexityValidator(PASSWORD_COMPLEXITY)
+complexity = ComplexityValidator(PASSWORD_COMPLEXITY, PASSWORD_SPECIAL_CHARACTERS)
 dictionary_words = DictionaryValidator(dictionary=PASSWORD_DICTIONARY)
 common_sequences = CommonSequenceValidator(PASSWORD_COMMON_SEQUENCES)
